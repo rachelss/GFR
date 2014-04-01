@@ -1,12 +1,14 @@
 #!/bin/bash
 #requires ref_genes.fa
-#include data folders as command line input
+#one folder per species containing pe reads as *1.fastq and *2.fastq
+#do not have bam or sam files in these folders
+#bash GFR.sh <number processors>
 
-echo Enter the number of processors available: 
-read P
-
-echo Enter a list of folders with data: 
-read -a FOLDERLIST
+P=$1
+FILELIST=($(ls */*1.fastq))
+declare -a ALLFOLDERLIST=()
+for F in "${FILELIST[@]}"; do ALLFOLDERLIST+=("$( dirname "${F}" )"); done       #array of directories containing FORMAT files
+FOLDERLIST=( $(echo "${ALLFOLDERLIST[@]}" | tr ' ' '\n' | sort -u | tr '\n' ' ') )  #sorted unique list of folders with paired FORMAT files as array
 
 bowtie2-build ref_genes.fa ref_genes    #build index for conserved contigs
 rm */*bam
@@ -18,6 +20,7 @@ done
     
 parallel -j $P "samtools merge {}/merged.bam {}/*.bam" ::: "${FOLDERLIST[@]}"
 parallel -j $P "samtools view {}/merged.bam > {}/merged.sam" ::: "${FOLDERLIST[@]}"
-parallel -j $P "python separate_sam_by_contig.py {}/merged.sam" ::: "${FOLDERLIST[@]}"   #separate by contig
-ls */merged.sam | parallel -j $P "python make_alignment_from_sam.py {}" #take sam file, do dumb consensus and make new conserved contig file
-python concatenate.py
+parallel -j $P "python separate_sam_by_contig.py {}/merged.sam" ::: "${FOLDERLIST[@]}"   #separate by gene
+rm */merged.sam
+ls */*sam | parallel -j $P "python make_alignment_from_sam.py {}" #take sam file, do dumb consensus and make new conserved contig file
+python concatenate.py   #make files for each gene containing each species
