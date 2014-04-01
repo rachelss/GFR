@@ -13,7 +13,7 @@ FOLDERLIST=( $(echo "${ALLFOLDERLIST[@]}" | tr ' ' '\n' | sort -u | tr '\n' ' ')
 bowtie2-build ref_genes.fa ref_genes    #build index for conserved contigs
 rm */*bam
 for FOLDER in "${FOLDERLIST[@]}"; do
-    for FILE in *1.fastq; do
+    for FILE in "${FOLDER}"/*1.fastq; do
         bowtie2 -p "${P}" -N 1 --local -x ref_genes -1 ${FILE} -2 ${FILE/1.fastq/2.fastq} > >(tee ${FILE/1.fastq/}_stdout.log) 2> >(tee ${FILE/1.fastq/}_stderr.log >&2) | samtools view -Su -F 4 - | samtools sort - ${FILE/1.fastq/}  #output sorted bam file w/o unaligned reads - lots per folder
     done
 done   
