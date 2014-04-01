@@ -59,7 +59,7 @@ def get_consensus(alignment,pos):
     pos_bases_counts = Counter(pos_bases).most_common()
     if len(pos_bases_counts)>1:
         prop = float(pos_bases_counts[0][1]) / (float(pos_bases_counts[1][1])+float(pos_bases_counts[0][1]))
-        if prop > 0.7:
+        if prop > 0.8:
             c_base = pos_bases_counts[0][0]
         else:
             c_base = 'N'
@@ -68,7 +68,7 @@ def get_consensus(alignment,pos):
     else:
         c_base = 'N'
     
-    return c_base
+    return c_base, len(pos_bases)
 ######################
 contig_read_mappings=sys.argv[1]
 folder_name=contig_read_mappings.split('/')[0]
@@ -115,18 +115,19 @@ for i,j in enumerate(totalseq):
     plus = maxlen - len(j)
     totalseq[i] = j + ('-' * plus)
 
-#outfile = open('out_contig_seq_alignment.txt','w')
-#for i,j in enumerate(totalseq):
-#    outfile.write(j+"\n")
-#outfile.close()
-
 consensus = []
+site_counts
 for i in range(len(totalseq[0])):
-    c_base = get_consensus(totalseq,i)
+    c_base,num = get_consensus(totalseq,i)
     consensus.append(c_base)
+    site_counts.append(num)
 consensus = ''.join(consensus)
 consensus_seq = Seq(consensus)
 consensus_seq_r = SeqRecord(consensus_seq, id=node_name)
 SeqIO.write(consensus_seq_r,folder_name+'/'+node_name+'.fa', "fasta")
+
+outfile=open(folder_name+'/'+node_name+'.counts','w')
+outfile.write(' '.join(site_counts))
+outfile.close()             
 
 print numreads

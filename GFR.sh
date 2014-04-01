@@ -14,13 +14,21 @@ bowtie2-build ref_genes.fa ref_genes    #build index for conserved contigs
 rm */*bam
 for FOLDER in "${FOLDERLIST[@]}"; do
     for FILE in *1.fastq; do
-        bowtie2 -p "${P}" -N 1 --local -x ref_genes -1 ${FILE} -2 ${FILE/1.fastq/2.fastq} > >(tee ${FILE/1.fastq/}_stdout.log) 2> >(tee ${FILE/1.fastq/}_stderr.log >&2) | samtools view -Su -F 4 - | samtools sort - ${FILE/1.fastq/}  #output sorted bam file w/o unaligned reads
+        bowtie2 -p "${P}" -N 1 --local -x ref_genes -1 ${FILE} -2 ${FILE/1.fastq/2.fastq} > >(tee ${FILE/1.fastq/}_stdout.log) 2> >(tee ${FILE/1.fastq/}_stderr.log >&2) | samtools view -Su -F 4 - | samtools sort - ${FILE/1.fastq/}  #output sorted bam file w/o unaligned reads - lots per folder
     done
 done   
     
-parallel -j $P "samtools merge {}/merged.bam {}/*.bam" ::: "${FOLDERLIST[@]}"
-parallel -j $P "samtools view {}/merged.bam > {}/merged.sam" ::: "${FOLDERLIST[@]}"
-parallel -j $P "python separate_sam_by_contig.py {}/merged.sam" ::: "${FOLDERLIST[@]}"   #separate by gene
+parallel -j $P "samtools merge {}/merged.bam {}/*.bam" ::: "${FOLDERLIST[@]}"       #merge bam files
+parallel -j $P "samtools view {}/merged.bam > {}/merged.sam" ::: "${FOLDERLIST[@]}"     #convert to sam file
+parallel -j $P "python separate_sam_by_contig.py {}/merged.sam" ::: "${FOLDERLIST[@]}"   #separate by gene -> lots of sam files per folder
 rm */merged.sam
-ls */*sam | parallel -j $P "python make_alignment_from_sam.py {}" #take sam file, do dumb consensus and make new conserved contig file
-python concatenate.py   #make files for each gene containing each species
+ls */*sam | parallel -j $P "python make_alignment_from_sam.py {}" #take sam file, do dumb consensus and make new conserved contig file -> lots of fa files per folder
+parallel -j $P "cat {}/*fa > {}.fa"  ::: "${FOLDERLIST[@]}"     #concatenate fa files -> all species fa files in main folder
+python genealign_from_allgenes.py  #make files for each gene containing seq for each species
+for F in ${FOLDERLIST}; do rm ${F}.fa
+    done      #delete species fasta files
+for F in *fa; do
+    if [ "${F}" != 'ref_genes.fa' ]; then   #align files of each gene
+        mafft $F
+    fi
+done
