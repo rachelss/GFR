@@ -7,14 +7,16 @@ from Bio import SeqIO
 from Bio import AlignIO
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
+import glob
 
 def read_resort(species,seqdict):
     print 'Reading data: '+species
     for seq_record in SeqIO.parse(f, "fasta"):
-        node=seq_record.id[:]
-        if seq_record.id not in seqdict:
-            seqdict[node]=list()
-        seqdict[node].append(seq_record)    
+        gene=seq_record.id[:]
+        if gene not in seqdict:
+            seqdict[gene]=list()
+        seq_record.id=species.split('.')[0]
+        seqdict[gene].append(seq_record)    
     return seqdict
 
 ##########################################################

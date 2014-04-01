@@ -29,6 +29,6 @@ for F in ${FOLDERLIST}; do rm ${F}.fa
     done      #delete species fasta files
 for F in *fa; do
     if [ "${F}" != 'ref_genes.fa' ]; then   #align files of each gene
-        mafft $F
+        mafft $F > ${F/.fa/_align.fa}
     fi
 done

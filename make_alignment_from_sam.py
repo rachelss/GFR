@@ -116,11 +116,11 @@ for i,j in enumerate(totalseq):
     totalseq[i] = j + ('-' * plus)
 
 consensus = []
-site_counts
+site_counts=[]
 for i in range(len(totalseq[0])):
     c_base,num = get_consensus(totalseq,i)
     consensus.append(c_base)
-    site_counts.append(num)
+    site_counts.append(str(num))
 consensus = ''.join(consensus)
 consensus_seq = Seq(consensus)
 consensus_seq_r = SeqRecord(consensus_seq, id=node_name)
