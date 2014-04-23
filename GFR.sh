@@ -9,8 +9,7 @@ help() {
 Default settings can be changed using the following flags:
 
     -p : use to specify the number of processors available
-    -s : use to specify the steps to skip: 1 skips finding contigs, 2 also skips aligning reads to contigs; 3 skips to just identifying whether sites are variable among taxa
-
+    -s : use to specify the steps to skip: 1 skips building the reference
     Example command: bash GFR.sh -s 1"
     }
 
@@ -42,26 +41,30 @@ if [ "$SKIP" -lt 1 ]; then
         done
     done   
 fi
-if [ "$SKIP" -lt 2 ]; then
-    rm */merged.bam
-    parallel -j $P "samtools merge {}/merged.bam {}/*.bam" ::: "${FOLDERLIST[@]}"       #merge bam files
-    parallel -j $P "samtools view {}/merged.bam > {}/merged.sam" ::: "${FOLDERLIST[@]}"     #convert to sam file
-    parallel -j $P "python separate_sam_by_contig.py {}/merged.sam" ::: "${FOLDERLIST[@]}"   #separate by gene -> lots of sam files per folder
-    rm */merged.sam
-    rm */*fa
-    rm */*counts
-    mv ref_genes.fa ref_genes.fasta
-    rm *fa
-    ls */*sam | parallel -j $P "python make_alignment_from_sam.py {}" #take sam file, do dumb consensus and make new conserved contig file -> lots of fa files per folder
-    parallel -j $P "cat {}/*fa > {}.fa"  ::: "${FOLDERLIST[@]}"     #concatenate fa files -> all species fa files in main folder
-    python genealign_from_allgenes.py  #make files for each gene containing seq for each species
-    mv ref_genes.fasta ref_genes.fa
-    for F in ${FOLDERLIST}; do rm ${F}.fa
-        done      #delete species fasta files
-    for F in *fa; do
-        if [ "${F}" != 'ref_genes.fa' ]; then   #align files of each gene
-            mafft $F > ${F/.fa/_align.fa}
-        fi
-    done
-    
+
+rm */merged.bam
+parallel -j $P "samtools merge {}/merged.bam {}/*.bam" ::: "${FOLDERLIST[@]}"       #merge bam files
+for FOLDER in "${FOLDERLIST[@]}"; do if [ ! -f merged.bam ]; then
+    A=${FOLDER}/*bam
+    ln $(echo "$A") ${FOLDER}/merged.bam
 fi
+done
+
+parallel -j $P "samtools view {}/merged.bam > {}/merged.sam" ::: "${FOLDERLIST[@]}"     #convert to sam file
+parallel -j $P "python separate_sam_by_contig.py {}/merged.sam" ::: "${FOLDERLIST[@]}"   #separate by gene -> lots of sam files per folder
+rm */merged.sam
+rm */*fa
+rm */*counts
+mv ref_genes.fa ref_genes.fasta
+rm *fa
+ls */*sam | parallel -j $P "python make_alignment_from_sam.py {}" #take sam file, do dumb consensus and make new conserved contig file -> lots of fa files per folder
+parallel -j $P "cat {}/*fa > {}.fa"  ::: "${FOLDERLIST[@]}"     #concatenate fa files -> all species fa files in main folder
+python genealign_from_allgenes.py  #make files for each gene containing seq for each species
+mv ref_genes.fasta ref_genes.fa
+for F in "${FOLDERLIST[@]}"; do rm ${F}.fa
+    done      #delete species fasta files
+for F in *fa; do
+    if [ "${F}" != 'ref_genes.fa' ]; then   #align files of each gene
+        mafft $F > ${F/.fa/_align.fa}
+    fi
+done
