@@ -101,7 +101,7 @@ def likelihoodtest(list_bases,reads1,reads2):  #function to do the likelihood te
             probhomo=Decimal(1.7976931348623157e+308)
         if probhet=="inf":
             probhet=Decimal(1.7976931348623157e+308)
-        print probhet
+#        print probhet
         ln1=(math.log(probhomo))
         ln2=(math.log(probhet))
         likelihood=Decimal(2*(ln1-ln2))

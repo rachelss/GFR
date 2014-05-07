@@ -9,7 +9,7 @@ help() {
 Default settings can be changed using the following flags:
 
     -p : use to specify the number of processors available
-    -s : use to specify the steps to skip: 1 skips building the reference
+    -s : use to specify the steps to skip: 1 skips aligning to the genes
     Example command: bash GFR.sh -s 1"
     }
 
@@ -26,6 +26,8 @@ case "${option}"
         \? ) echo "Unknown option" >&2; exit 1;;
         esac
 done
+
+DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"    #where is the main program file? 
 
 FILELIST=($(ls */*R1*.fastq))
 declare -a ALLFOLDERLIST=()
@@ -44,22 +46,22 @@ fi
 
 rm */merged.bam
 parallel -j $P "samtools merge {}/merged.bam {}/*.bam" ::: "${FOLDERLIST[@]}"       #merge bam files
-for FOLDER in "${FOLDERLIST[@]}"; do if [ ! -f merged.bam ]; then
+for FOLDER in "${FOLDERLIST[@]}"; do if [ ! -f ${FOLDER}/merged.bam ]; then                   #samtools won't merge one file - need to copy
     A=${FOLDER}/*bam
     ln $(echo "$A") ${FOLDER}/merged.bam
 fi
 done
 
 parallel -j $P "samtools view {}/merged.bam > {}/merged.sam" ::: "${FOLDERLIST[@]}"     #convert to sam file
-parallel -j $P "python separate_sam_by_contig.py {}/merged.sam" ::: "${FOLDERLIST[@]}"   #separate by gene -> lots of sam files per folder
+parallel -j $P "python ${DIR}/separate_sam_by_contig.py {}/merged.sam" ::: "${FOLDERLIST[@]}"   #separate by gene -> lots of sam files per folder
 rm */merged.sam
 rm */*fa
 rm */*counts
 mv ref_genes.fa ref_genes.fasta
 rm *fa
-ls */*sam | parallel -j $P "python make_alignment_from_sam.py {}" #take sam file, do dumb consensus and make new conserved contig file -> lots of fa files per folder
+for i in */*sam; do python ${DIR}/make_alignment_from_sam.py $i #take sam file, do dumb consensus and make new conserved contig file -> lots of fa files per folder
 parallel -j $P "cat {}/*fa > {}.fa"  ::: "${FOLDERLIST[@]}"     #concatenate fa files -> all species fa files in main folder
-python genealign_from_allgenes.py  #make files for each gene containing seq for each species
+python ${DIR}/genealign_from_allgenes.py  #make files for each gene containing seq for each species
 mv ref_genes.fasta ref_genes.fa
 for F in "${FOLDERLIST[@]}"; do rm ${F}.fa
     done      #delete species fasta files
