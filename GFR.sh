@@ -55,15 +55,15 @@ fi
 
 if [ "$SKIP" -lt 1 ]; then
     bowtie2-build ref_genes.fa ref_genes    #build index for conserved contigs
-    rm */*bam
     for FOLDER in "${FOLDERLIST[@]}"; do
+        rm "${FOLDER}"/*bam
         for FILE in "${FOLDER}"/*R1*.fastq; do
             bowtie2 -p "${P}" -N 1 --local -x ref_genes -1 ${FILE} -2 $( echo ${FILE}|sed 's/R1/R2/' ) > >(tee ${FILE/.fastq/}_stdout.log) 2> >(tee ${FILE/.fastq/}_stderr.log >&2) | samtools view -Su -F 4 - | samtools sort - ${FILE/.fastq/}  #output sorted bam file w/o unaligned reads - lots per folder
         done
     done   
 fi
 
-rm */merged.bam
+for FOLDER in "${FOLDERLIST[@]}"; do rm "${FOLDER}"/merged.bam; done
 parallel -j $P "samtools merge {}/merged.bam {}/*.bam" ::: "${FOLDERLIST[@]}"       #merge bam files
 for FOLDER in "${FOLDERLIST[@]}"; do if [ ! -f ${FOLDER}/merged.bam ]; then                   #samtools won't merge one file - need to copy
     A=${FOLDER}/*bam
@@ -73,16 +73,19 @@ done
 
 parallel -j $P "samtools view {}/merged.bam > {}/merged.sam" ::: "${FOLDERLIST[@]}"     #convert to sam file
 parallel -j $P "python ${DIR}/separate_sam_by_contig.py {}/merged.sam" ::: "${FOLDERLIST[@]}"   #separate by gene -> lots of sam files per folder
-rm */merged.sam
+for FOLDER in "${FOLDERLIST[@]}"; do rm "${FOLDER}"/merged.sam; done
 #parallel -j $P 'for j in {}/*fa; do rm $j; done' ::: "${FOLDERLIST[@]}"
 #parallel -j $P 'for j in {}/*counts; do rm $j; done' ::: "${FOLDERLIST[@]}"
-mv ref_genes.fa ref_genes.fasta
-for j in *fa; do rm $j; done
-#for i in */*sam; do python ${DIR}/make_alignment_from_sam.py $i ${ALLELES}; done #take sam file, do dumb consensus and make new conserved contig file -> lots of fa files per folder
-parallel -j $P 'for j in {}/*sam; do' "python ${DIR}/make_alignment_from_sam.py" '$j ${ALLELES}; done'  ::: "${FOLDERLIST[@]}" 
-parallel -j $P 'for j in {}/*fa; do cat $j >> {}.fa; done'  ::: "${FOLDERLIST[@]}" #concatenate fa files -> all species fa files in main folder
-        
-python ${DIR}/genealign_from_allgenes.py ${ALLELES}  #make files for each gene containing seq for each species
-for F in "${FOLDERLIST[@]}"; do mv ${F}.fa ${F}.fasta; done      #delete species fasta files
-for F in *fa; do mafft $F > ${F/.fa/_align.fa}; done   #align files of each gene
-mv ref_genes.fasta ref_genes.fa
+
+if [ "$WITHIN" -lt 1 ]; then
+    mv ref_genes.fa ref_genes.fasta
+    for j in *fa; do rm $j; done
+    #for i in */*sam; do python ${DIR}/make_alignment_from_sam.py $i ${ALLELES}; done #take sam file, do dumb consensus and make new conserved contig file -> lots of fa files per folder
+    parallel -j $P 'for j in {}/*sam; do' "python ${DIR}/make_alignment_from_sam.py" '$j ${ALLELES}; done'  ::: "${FOLDERLIST[@]}" 
+    parallel -j $P 'for j in {}/*fa; do cat $j >> {}.fa; done'  ::: "${FOLDERLIST[@]}" #concatenate fa files -> all species fa files in main folder
+            
+    python ${DIR}/genealign_from_allgenes.py ${ALLELES}  #make files for each gene containing seq for each species
+    for F in "${FOLDERLIST[@]}"; do mv ${F}.fa ${F}.fasta; done      #delete species fasta files
+    for F in *fa; do mafft $F > ${F/.fa/_align.fa}; done   #align files of each gene
+    mv ref_genes.fasta ref_genes.fa
+fi
