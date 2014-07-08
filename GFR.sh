@@ -42,7 +42,7 @@ FOLDERLIST=( $(echo "${ALLFOLDERLIST[@]}" | tr ' ' '\n' | sort -u | tr '\n' ' ')
 
 if [ "$REF" -gt 0 ]; then       #take each .fasta file, get most common base at each site, add to ref_genes.fa
     for F in *fasta; do mafft $F > ${F/.fasta/_aligned.fasta}; done
-    ls *_aligned.fasta | parallel -j $P "python ${DIR}/get_mr_consensus.py {}"
+    python ${DIR}/get_mr_consensus.py
 fi
 
 if [ "$SKIP" -t 1 ]; then
