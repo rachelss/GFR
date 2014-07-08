@@ -22,7 +22,7 @@ ALLELES=1
 REF=0
 WITHIN=0
 
-while getopts rp:a:s:h option
+while getopts wrp:a:s:h option
 do
 case "${option}"
     in
@@ -49,8 +49,12 @@ else
 fi
 
 if [ "$REF" -gt 0 ]; then       #take each .fasta file, get most common base at each site, add to ref_genes.fa
-    for F in *fasta; do mafft $F > ${F/.fasta/_aligned.fasta}; done
-    python ${DIR}/get_mr_consensus.py
+    if [ "$WITHIN" -lt 1 ]; then
+        for F in *fasta; do mafft $F > ${F/.fasta/_aligned.fasta}; done
+        python ${DIR}/get_mr_consensus.py
+    else
+        cat *fasta > ref_genes.fa
+    fi
 fi
 
 if [ "$SKIP" -lt 1 ]; then
@@ -74,14 +78,14 @@ done
 parallel -j $P "samtools view {}/merged.bam > {}/merged.sam" ::: "${FOLDERLIST[@]}"     #convert to sam file
 parallel -j $P "python ${DIR}/separate_sam_by_contig.py {}/merged.sam" ::: "${FOLDERLIST[@]}"   #separate by gene -> lots of sam files per folder
 for FOLDER in "${FOLDERLIST[@]}"; do rm "${FOLDER}"/merged.sam; done
+parallel -j $P 'for j in {}/*sam; do' "python ${DIR}/make_alignment_from_sam.py" '$j ${ALLELES}; done'  ::: "${FOLDERLIST[@]}"
 #parallel -j $P 'for j in {}/*fa; do rm $j; done' ::: "${FOLDERLIST[@]}"
 #parallel -j $P 'for j in {}/*counts; do rm $j; done' ::: "${FOLDERLIST[@]}"
 
 if [ "$WITHIN" -lt 1 ]; then
     mv ref_genes.fa ref_genes.fasta
     for j in *fa; do rm $j; done
-    #for i in */*sam; do python ${DIR}/make_alignment_from_sam.py $i ${ALLELES}; done #take sam file, do dumb consensus and make new conserved contig file -> lots of fa files per folder
-    parallel -j $P 'for j in {}/*sam; do' "python ${DIR}/make_alignment_from_sam.py" '$j ${ALLELES}; done'  ::: "${FOLDERLIST[@]}" 
+    #for i in */*sam; do python ${DIR}/make_alignment_from_sam.py $i ${ALLELES}; done #take sam file, do dumb consensus and make new conserved contig file -> lots of fa files per folder     
     parallel -j $P 'for j in {}/*fa; do cat $j >> {}.fa; done'  ::: "${FOLDERLIST[@]}" #concatenate fa files -> all species fa files in main folder
             
     python ${DIR}/genealign_from_allgenes.py ${ALLELES}  #make files for each gene containing seq for each species
