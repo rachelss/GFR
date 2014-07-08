@@ -18,19 +18,22 @@ def get_consensus(data):
 ######################
 bases = ['A','C','G','T','a','c','g','t']
 
-genes = glob.glob("*.fasta")
+genes = glob.glob("*_aligned.fasta")
 geneseqs = []
 
 for gene in genes:
+    final_seq=[]
     handle = open(gene, "rU")
     allseqs = list(SeqIO.parse(handle, "fasta"))
     handle.close()
     
     for i in range(len(allseqs[0])):
-        data = [seq[i] for seq in allseqs if seq[i] in bases]        
-        final_seq.append(get_consensus(data))
+        data = [seq[i] for seq in allseqs if seq[i] in bases]
+        if len(data)>0:
+            b = get_consensus(data)
+            final_seq.append(b)
     
-    final_seq_r = SeqRecord(Seq(''.join(final_seq)), id=gene)
+    final_seq_r = SeqRecord(Seq(''.join(final_seq)), id=gene.replace('_aligned.fasta',''))
     geneseqs.append(final_seq_r)
 
-SeqIO.write(genes,'ref_genes.fa', "fasta")
+SeqIO.write(geneseqs,'ref_genes.fa', "fasta")
