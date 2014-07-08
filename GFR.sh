@@ -8,20 +8,26 @@ help() {
     echo "
 Default settings can be changed using the following flags:
 
-    -p : use to specify the number of processors available
+    -r : set as 1 to produce ref_genes.fa from consensus of each .fasta file (one per gene)
+    -p : use to specify the number of processors available (default = 1)
     -s : use to specify the steps to skip: 1 skips aligning to the genes
+    -a : 1 or 2 alleles (default = 1)
     Example command: bash GFR.sh -s 1"
     }
 
+REF=0
 P=1
 SKIP=0
+ALLELES=1
 
-while getopts p:s:h option
+while getopts r:p:a:s:h option
 do
 case "${option}"
     in
+        r) REF=${OPTARG};;
         p) P=${OPTARG};;
         s) SKIP=${OPTARG};;
+        a) ALLELES=${OPTARG};;
         h) help; exit;;
         \? ) echo "Unknown option" >&2; exit 1;;
         esac
@@ -34,7 +40,12 @@ declare -a ALLFOLDERLIST=()
 for F in "${FILELIST[@]}"; do ALLFOLDERLIST+=("$( dirname "${F}" )"); done       #array of directories containing FORMAT files
 FOLDERLIST=( $(echo "${ALLFOLDERLIST[@]}" | tr ' ' '\n' | sort -u | tr '\n' ' ') )  #sorted unique list of folders with paired FORMAT files as array
 
-if [ "$SKIP" -lt 1 ]; then
+if [ "$REF" -gt 0 ]; then       #take each .fasta file, get most common base at each site, add to ref_genes.fa
+    for F in *fasta; do mafft $F > ${F/.fasta/_aligned.fasta}; done
+    ls *_aligned.fasta | parallel -j $P "python ${DIR}/get_mr_consensus.py {}"
+fi
+
+if [ "$SKIP" -t 1 ]; then
     bowtie2-build ref_genes.fa ref_genes    #build index for conserved contigs
     rm */*bam
     for FOLDER in "${FOLDERLIST[@]}"; do
@@ -55,18 +66,15 @@ done
 parallel -j $P "samtools view {}/merged.bam > {}/merged.sam" ::: "${FOLDERLIST[@]}"     #convert to sam file
 parallel -j $P "python ${DIR}/separate_sam_by_contig.py {}/merged.sam" ::: "${FOLDERLIST[@]}"   #separate by gene -> lots of sam files per folder
 rm */merged.sam
-rm */*fa
-rm */*counts
+#parallel -j $P 'for j in {}/*fa; do rm $j; done' ::: "${FOLDERLIST[@]}"
+#parallel -j $P 'for j in {}/*counts; do rm $j; done' ::: "${FOLDERLIST[@]}"
 mv ref_genes.fa ref_genes.fasta
-rm *fa
-for i in */*sam; do python ${DIR}/make_alignment_from_sam.py $i #take sam file, do dumb consensus and make new conserved contig file -> lots of fa files per folder
-parallel -j $P "cat {}/*fa > {}.fa"  ::: "${FOLDERLIST[@]}"     #concatenate fa files -> all species fa files in main folder
-python ${DIR}/genealign_from_allgenes.py  #make files for each gene containing seq for each species
+for j in *fa; do rm $j; done
+#for i in */*sam; do python ${DIR}/make_alignment_from_sam.py $i ${ALLELES}; done #take sam file, do dumb consensus and make new conserved contig file -> lots of fa files per folder
+parallel -j $P 'for j in {}/*sam; do' "python ${DIR}/make_alignment_from_sam.py" '$j ${ALLELES}; done'  ::: "${FOLDERLIST[@]}" 
+parallel -j $P 'for j in {}/*fa; do cat $j >> {}.fa; done'  ::: "${FOLDERLIST[@]}" #concatenate fa files -> all species fa files in main folder
+        
+python ${DIR}/genealign_from_allgenes.py ${ALLELES}  #make files for each gene containing seq for each species
+for F in "${FOLDERLIST[@]}"; do mv ${F}.fa ${F}.fasta; done      #delete species fasta files
+for F in *fa; do mafft $F > ${F/.fa/_align.fa}; done   #align files of each gene
 mv ref_genes.fasta ref_genes.fa
-for F in "${FOLDERLIST[@]}"; do rm ${F}.fa
-    done      #delete species fasta files
-for F in *fa; do
-    if [ "${F}" != 'ref_genes.fa' ]; then   #align files of each gene
-        mafft $F > ${F/.fa/_align.fa}
-    fi
-done
