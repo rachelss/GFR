@@ -129,12 +129,8 @@ def likelihoodtest(list_bases,reads1,reads2):  #function to do the likelihood te
         else:
             return 'n','n',len(listbases),phasing,reads1,reads2
 
-def get_consensus(alignment,pos):
-    pos_bases = []
-    for seq in alignment:
-        if seq[pos] is not '-':
-            pos_bases.append(seq[pos])
-    pos_bases_counts = Counter(pos_bases).most_common()
+def get_consensus(data):
+    pos_bases_counts = Counter(data).most_common()
     if len(pos_bases_counts)>1:
         prop = Decimal(pos_bases_counts[0][1]) / (Decimal(pos_bases_counts[1][1])+Decimal(pos_bases_counts[0][1]))
         if prop > 0.8:
@@ -146,9 +142,10 @@ def get_consensus(alignment,pos):
     else:
         c_base = 'N'
     
-    return c_base, len(pos_bases)
+    return c_base, len(data)
 ######################
 contig_read_mappings=sys.argv[1]
+numalleles=int(sys.argv[2])
 print contig_read_mappings,
 folder_name=contig_read_mappings.split('/')[0]
 file_name=contig_read_mappings.split('/')[1]
@@ -196,21 +193,32 @@ for i,j in enumerate(totalseq):
     plus = maxlen - len(j)
     totalseq[i] = j + ('-' * plus)          #reads have - added to make them all the same length
 
-allele1,allele2,site_counts,reads1,reads2 = [],[],[],[],[]
-phasingp='p'
-for i in range(len(totalseq[0])):
-    base1, base2,num,phasing,reads1,reads2 = likelihoodtest([seq[i] for seq in totalseq],reads1,reads2)
-    allele1.append(base1)
-    allele2.append(base2)
-    site_counts.append(str(num))
-    if phasing == 'u':
-        phasingp = 'u'
-allele1_seq_r = SeqRecord(Seq(''.join(allele1)), id=node_name+phasingp+'1')
-allele2_seq_r = SeqRecord(Seq(''.join(allele2)), id=node_name+phasingp+'2')
-alleles = []
-alleles.append(allele1_seq_r)
-alleles.append(allele2_seq_r)
-SeqIO.write(alleles,folder_name+'/'+node_name+'.fa', "fasta")
+if numalleles == 1:
+    print 'one allele'
+    allele1,site_counts = [],[]
+    for i in range(len(totalseq[0])):
+        base1,num = get_consensus([seq[i] for seq in totalseq if seq[i] is not '-'])
+        allele1.append(base1)
+    allele1_seq_r = SeqRecord(Seq(''.join(allele1)), id=node_name)
+    alleles = []
+    alleles.append(allele1_seq_r)
+    SeqIO.write(alleles,folder_name+'/'+node_name+'.fa', "fasta")
+else:
+    allele1,allele2,site_counts,reads1,reads2 = [],[],[],[],[]
+    phasingp='p'
+    for i in range(len(totalseq[0])):
+        base1, base2,num,phasing,reads1,reads2 = likelihoodtest([seq[i] for seq in totalseq],reads1,reads2)
+        allele1.append(base1)
+        allele2.append(base2)
+        site_counts.append(str(num))
+        if phasing == 'u':
+            phasingp = 'u'
+    allele1_seq_r = SeqRecord(Seq(''.join(allele1)), id=node_name+phasingp+'1')
+    allele2_seq_r = SeqRecord(Seq(''.join(allele2)), id=node_name+phasingp+'2')
+    alleles = []
+    alleles.append(allele1_seq_r)
+    alleles.append(allele2_seq_r)
+    SeqIO.write(alleles,folder_name+'/'+node_name+'.fa', "fasta")
 
 outfile=open(folder_name+'/'+node_name+'.counts','w')
 outfile.write(' '.join(site_counts))

@@ -9,15 +9,16 @@ from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
 import glob
 
-def read_resort(species,seqdict):
+def read_resort(species,seqdict,numalleles):
     print 'Reading data: '+species
     for seq_record in SeqIO.parse(f, "fasta"):
         allele=[]
         gene=list(seq_record.id[:])
         allele.append("".join(species.split('.')[:-1]))
-        allele.append('_')
-        allele.append(gene.pop(-2))
-        allele.append(gene.pop())
+        if numalleles>1:
+            allele.append('_')
+            allele.append(gene.pop(-2))
+            allele.append(gene.pop())
         gene=''.join(gene)
         if gene not in seqdict:
             seqdict[gene]=list()
@@ -30,7 +31,7 @@ fafiles = glob.glob("*.fa")
 print fafiles
 seqdict=dict()
 for f in fafiles:
-    seqdict = read_resort(f,seqdict)        #gene:(SeqRecord(species,sequence))
+    seqdict = read_resort(f,seqdict,int(sys.argv[1]))        #gene:(SeqRecord(species,sequence))
 
 for gene, records in seqdict.iteritems():
     SeqIO.write(records, gene+'.fa', "fasta")

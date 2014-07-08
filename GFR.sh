@@ -8,23 +8,26 @@ help() {
     echo "
 Default settings can be changed using the following flags:
 
-    -r : set as 1 to produce ref_genes.fa from consensus of each .fasta file (one per gene)
+    -w : only work within current folder
+    -r : produce ref_genes.fa from consensus of each .fasta file (one per gene)
     -p : use to specify the number of processors available (default = 1)
     -s : use to specify the steps to skip: 1 skips aligning to the genes
     -a : 1 or 2 alleles (default = 1)
     Example command: bash GFR.sh -s 1"
     }
 
-REF=0
 P=1
 SKIP=0
 ALLELES=1
+REF=0
+WITHIN=0
 
-while getopts r:p:a:s:h option
+while getopts rp:a:s:h option
 do
 case "${option}"
     in
-        r) REF=${OPTARG};;
+        w) WITHIN=1;;
+        r) REF=1;;
         p) P=${OPTARG};;
         s) SKIP=${OPTARG};;
         a) ALLELES=${OPTARG};;
@@ -35,17 +38,22 @@ done
 
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"    #where is the main program file? 
 
-FILELIST=($(ls */*R1*.fastq))
-declare -a ALLFOLDERLIST=()
-for F in "${FILELIST[@]}"; do ALLFOLDERLIST+=("$( dirname "${F}" )"); done       #array of directories containing FORMAT files
-FOLDERLIST=( $(echo "${ALLFOLDERLIST[@]}" | tr ' ' '\n' | sort -u | tr '\n' ' ') )  #sorted unique list of folders with paired FORMAT files as array
+if [ "$WITHIN" -lt 1 ]; then
+    FILELIST=($(ls */*R1*.fastq))
+    declare -a ALLFOLDERLIST=()
+    for F in "${FILELIST[@]}"; do ALLFOLDERLIST+=("$( dirname "${F}" )"); done       #array of directories containing FORMAT files
+    FOLDERLIST=( $(echo "${ALLFOLDERLIST[@]}" | tr ' ' '\n' | sort -u | tr '\n' ' ') )  #sorted unique list of folders with paired FORMAT files as array
+else
+    FILELIST=($(ls *R1*.fastq))
+    FOLDERLIST=(.)
+fi
 
 if [ "$REF" -gt 0 ]; then       #take each .fasta file, get most common base at each site, add to ref_genes.fa
     for F in *fasta; do mafft $F > ${F/.fasta/_aligned.fasta}; done
     python ${DIR}/get_mr_consensus.py
 fi
 
-if [ "$SKIP" -t 1 ]; then
+if [ "$SKIP" -lt 1 ]; then
     bowtie2-build ref_genes.fa ref_genes    #build index for conserved contigs
     rm */*bam
     for FOLDER in "${FOLDERLIST[@]}"; do
