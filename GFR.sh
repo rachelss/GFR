@@ -78,7 +78,7 @@ done
 parallel -j $P "samtools view {}/merged.bam > {}/merged.sam" ::: "${FOLDERLIST[@]}"     #convert to sam file
 parallel -j $P "python ${DIR}/separate_sam_by_contig.py {}/merged.sam" ::: "${FOLDERLIST[@]}"   #separate by gene -> lots of sam files per folder
 for FOLDER in "${FOLDERLIST[@]}"; do rm "${FOLDER}"/merged.sam; done
-parallel -j $P 'for j in {}/*sam; do' "python ${DIR}/make_alignment_from_sam.py" '$j ${ALLELES}; done'  ::: "${FOLDERLIST[@]}"
+parallel -j $P 'for j in {}/*sam; do' "python ${DIR}/make_alignment_from_sam.py" '$j' "${ALLELES}" '; done'  ::: "${FOLDERLIST[@]}"
 #parallel -j $P 'for j in {}/*fa; do rm $j; done' ::: "${FOLDERLIST[@]}"
 #parallel -j $P 'for j in {}/*counts; do rm $j; done' ::: "${FOLDERLIST[@]}"
 
