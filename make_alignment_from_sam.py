@@ -41,31 +41,39 @@ def sep_cigar(cigar):
     return nums, code
 
 
-def adjust_seq(seq,cigar):
+def adjust_seq(seq,qual,cigar):
     seq = list(seq)
-    newseq = []
+    qual = list(qual)
+    newseq,newqual = [],[]
     nums,code = sep_cigar(cigar)
     for j,num in enumerate(nums):
         if code[j] == 'S':
             if j == 0:
                 for z in range(num):
                     b = seq.pop(0)
+                    c = qual.pop(0)
             else:
                 for z in range(num):
                     b = seq.pop(0)
+                    c = qual.pop(0)
                     newseq.append(b)
+                    newqual.append(c)
         elif code[j] == 'I':
             for z in range(num):
                 b = seq.pop(0)
+                c = qual.pop(0)
         elif code[j] == 'D':
             for z in range(num):
                 newseq.append('-')
+                newqual.appen('-')
         elif code[j] == 'M':
             for z in range(num):
                 b = seq.pop(0)
+                c = qual.pop(0)
                 newseq.append(b)
+                newqual.append(c)
     
-    return newseq
+    return newseq,newqual
 
 def likelihoodtest(list_bases,reads1,reads2):  #function to do the likelihood test of Hohenlohe 2010 - takes a sequence in list form
     listbases = [b for b in list_bases if b in ['A','C','G','T','a','g','c','t']]
@@ -151,7 +159,7 @@ folder_name=contig_read_mappings.split('/')[0]
 file_name=contig_read_mappings.split('/')[1]
 node_name=file_name.split('.')[0]
 
-totalseq=[]
+totalseq,totalqual=[],[]
 #get alignment
 samfile=open(contig_read_mappings,'r')    #open file
 for line in samfile:      #go through file
@@ -173,13 +181,16 @@ for line in samfile:      #go through file
         cigar = splitline[5]
         pos = int(splitline[3])
         seq=splitline[9]
+        qual = splitline[10]
             
-        seq = adjust_seq(seq,cigar)
+        seq,qual = adjust_seq(seq,qual,cigar)
         
         while pos>1:
             seq.insert(0, '-')
+            qual.insert(0, '-')
             pos=pos-1
         totalseq.append("".join(seq))
+        totalqual.append("".join(qual))
 
 numreads = len(totalseq)
 if numreads == 0:
@@ -192,12 +203,13 @@ for i,j in enumerate(totalseq):
 for i,j in enumerate(totalseq):
     plus = maxlen - len(j)
     totalseq[i] = j + ('-' * plus)          #reads have - added to make them all the same length
+    totalqual[i] = j + ('-' * plus)
 
 if numalleles == 1:
     print 'one allele'
     allele1,site_counts = [],[]
     for i in range(len(totalseq[0])):
-        base1,num = get_consensus([seq[i] for seq in totalseq if seq[i] is not '-'])
+        base1,num = get_consensus([seq[i] for s,seq in enumerate(totalseq) if seq[i] is not '-' and ord(totalqual[s][i]) >39])  #7+32
         allele1.append(base1)
     allele1_seq_r = SeqRecord(Seq(''.join(allele1)), id=node_name)
     alleles = []
@@ -207,7 +219,7 @@ else:
     allele1,allele2,site_counts,reads1,reads2 = [],[],[],[],[]
     phasingp='p'
     for i in range(len(totalseq[0])):
-        base1, base2,num,phasing,reads1,reads2 = likelihoodtest([seq[i] for seq in totalseq],reads1,reads2)
+        base1, base2,num,phasing,reads1,reads2 = likelihoodtest([seq[i] for s,seq in enumerate(totalseq) if ord(totalqual[s][i]) >39],reads1,reads2)
         allele1.append(base1)
         allele2.append(base2)
         site_counts.append(str(num))
