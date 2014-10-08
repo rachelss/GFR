@@ -44,7 +44,7 @@ if [ "$WITHIN" -lt 1 ]; then
     for F in "${FILELIST[@]}"; do ALLFOLDERLIST+=("$( dirname "${F}" )"); done       #array of directories containing FORMAT files
     FOLDERLIST=( $(echo "${ALLFOLDERLIST[@]}" | tr ' ' '\n' | sort -u | tr '\n' ' ') )  #sorted unique list of folders with paired FORMAT files as array
 else
-    FILELIST=($(ls *R1*.fastq))
+    FILELIST=($(ls ./*R1*.fastq))
     FOLDERLIST=(.)
 fi
 
@@ -75,21 +75,24 @@ for FOLDER in "${FOLDERLIST[@]}"; do if [ ! -f ${FOLDER}/merged.bam ]; then     
 fi
 done
 
+for FOLDER in "${FOLDERLIST[@]}"; do
+    for F in ${FOLDER}/*.sam; do rm $F; done
+done
 parallel -j $P "samtools view {}/merged.bam > {}/merged.sam" ::: "${FOLDERLIST[@]}"     #convert to sam file
 parallel -j $P "python ${DIR}/separate_sam_by_contig.py {}/merged.sam" ::: "${FOLDERLIST[@]}"   #separate by gene -> lots of sam files per folder
 for FOLDER in "${FOLDERLIST[@]}"; do rm "${FOLDER}"/merged.sam; done
-parallel -j $P 'for j in {}/*sam; do' "python ${DIR}/make_alignment_from_sam.py" '$j' "${ALLELES}" '; done'  ::: "${FOLDERLIST[@]}"
-#parallel -j $P 'for j in {}/*fa; do rm $j; done' ::: "${FOLDERLIST[@]}"
-#parallel -j $P 'for j in {}/*counts; do rm $j; done' ::: "${FOLDERLIST[@]}"
 
 if [ "$WITHIN" -lt 1 ]; then
+    for F in */*sam; do python ${DIR}/make_alignment_from_sam.py ${F} ${ALLELES}; done
+    
     mv ref_genes.fa ref_genes.fasta
-    for j in *fa; do rm $j; done
-    #for i in */*sam; do python ${DIR}/make_alignment_from_sam.py $i ${ALLELES}; done #take sam file, do dumb consensus and make new conserved contig file -> lots of fa files per folder     
+    for j in *fa; do rm $j; done    
     parallel -j $P 'for j in {}/*fa; do cat $j >> {}.fa; done'  ::: "${FOLDERLIST[@]}" #concatenate fa files -> all species fa files in main folder
             
     python ${DIR}/genealign_from_allgenes.py ${ALLELES}  #make files for each gene containing seq for each species
     for F in "${FOLDERLIST[@]}"; do mv ${F}.fa ${F}.fasta; done      #delete species fasta files
     for F in *fa; do mafft $F > ${F/.fa/_align.fa}; done   #align files of each gene
     mv ref_genes.fasta ref_genes.fa
+else
+    for F in *.sam; do python ${DIR}/make_alignment_from_sam.py ${F} ${ALLELES}; done
 fi

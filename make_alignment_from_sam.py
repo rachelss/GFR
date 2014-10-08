@@ -65,7 +65,7 @@ def adjust_seq(seq,qual,cigar):
         elif code[j] == 'D':
             for z in range(num):
                 newseq.append('-')
-                newqual.appen('-')
+                newqual.append('-')
         elif code[j] == 'M':
             for z in range(num):
                 b = seq.pop(0)
